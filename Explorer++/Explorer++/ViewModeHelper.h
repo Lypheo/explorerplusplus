@@ -9,15 +9,15 @@
 #include <cassert>
 
 // clang-format off
-const std::array<ViewMode, 8> VIEW_MODES = {
-	ViewMode::ExtraLargeIcons,
-	ViewMode::LargeIcons,
-	ViewMode::Icons,
-	ViewMode::SmallIcons,
-	ViewMode::List,
+const std::array<ViewMode, 2> VIEW_MODES = {
+//	ViewMode::ExtraLargeIcons,
+//	ViewMode::LargeIcons,
+//	ViewMode::Icons,
+//	ViewMode::SmallIcons,
+//	ViewMode::List,
 	ViewMode::Details,
 	ViewMode::Thumbnails,
-	ViewMode::Tiles
+//	ViewMode::Tiles
 };
 // clang-format on
 
