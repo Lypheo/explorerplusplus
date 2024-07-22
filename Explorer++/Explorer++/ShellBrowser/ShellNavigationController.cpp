@@ -138,10 +138,35 @@ HRESULT ShellNavigationController::GoUp()
 	return BrowseFolder(pidlParent.get());
 }
 
+
 HRESULT ShellNavigationController::Refresh()
 {
 	auto *currentEntry = GetCurrentEntry();
 
+	auto path = currentEntry->GetFullPathForDisplay();
+	if (path.has_value())
+	{
+		auto v = path.value();
+		if (v[0] != 'X')
+			goto cont;
+		if (v.size() >= 3 && v[1] == ':')
+			v = v.substr(3);
+		std::wstring command = L"C:\\Path\\rclone.exe rc vfs/refresh dir=\"" + v + L"\"";
+		STARTUPINFO si = { sizeof(STARTUPINFO) };
+		PROCESS_INFORMATION pi;
+		if (CreateProcess(NULL, const_cast<WCHAR *>(command.c_str()), NULL, NULL, FALSE,
+				CREATE_NO_WINDOW, NULL,
+				NULL, &si, &pi)) {
+			WaitForSingleObject(pi.hProcess, INFINITE);
+			CloseHandle(pi.hProcess);
+			CloseHandle(pi.hThread);
+		}
+		else
+		{
+			MessageBox(NULL, L"Couldn’t create process", L"External Program Execution", MB_ICONERROR);
+		}
+	}
+cont:
 	if (!currentEntry)
 	{
 		return E_FAIL;

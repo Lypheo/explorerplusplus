@@ -84,6 +84,29 @@ SearchDialog::~SearchDialog()
 	}
 }
 
+
+LRESULT CALLBACK DialogSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
+	UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
+{
+	UNREFERENCED_PARAMETER(uIdSubclass);
+	UNREFERENCED_PARAMETER(dwRefData);
+	switch (uMsg)
+	{
+	case WM_GETDLGCODE:
+		return DLGC_WANTALLKEYS;
+	//case WM_KEYDOWN:
+	//	if (wParam == VK_RETURN)
+	//	{
+	//		MessageBox(hWnd, L"Enter key pressed!", L"Caught Enter Key", MB_OK);
+	//		return 0; // Message handled
+	//	}
+	//	break;
+	}
+
+	// For messages that we don't handle, call the default dialog procedure
+	return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+}
+
 INT_PTR SearchDialog::OnInitDialog()
 {
 	UINT dpi = DpiCompatibility::GetInstance().GetDpiForWindow(m_hDlg);
@@ -176,7 +199,7 @@ INT_PTR SearchDialog::OnInitDialog()
 	AllowDarkModeForComboBoxes({ IDC_COMBO_NAME, IDC_COMBO_DIRECTORY });
 
 	m_persistentSettings->RestoreDialogPosition(m_hDlg, true);
-
+	SetWindowSubclass(GetDlgItem(m_hDlg, IDC_LISTVIEW_SEARCHRESULTS), DialogSubclassProc, 0, 0);
 	return FALSE;
 }
 
@@ -262,11 +285,18 @@ void SearchDialog::GetResizableControlInformation(BaseDialog::DialogSizeConstrai
 INT_PTR SearchDialog::OnCommand(WPARAM wParam, LPARAM lParam)
 {
 	UNREFERENCED_PARAMETER(lParam);
-
 	switch (LOWORD(wParam))
 	{
 	case IDSEARCH:
+		OutputDebugStringW(L"IDSEARCH\n");
 		OnSearch();
+		SetFocus(GetDlgItem(m_hDlg, IDC_LISTVIEW_SEARCHRESULTS));
+		SendMessage(GetDlgItem(m_hDlg, IDSEARCH), BM_SETSTYLE, BS_PUSHBUTTON, TRUE);
+		break;
+	case IDC_COMBO_NAME:
+		if (HIWORD(wParam) == CBN_EDITCHANGE) {
+			OnSearch();
+		}
 		break;
 
 	case IDC_BUTTON_DIRECTORY:
@@ -408,32 +438,32 @@ void SearchDialog::StartSearching()
 
 	/* Save the search directory and search pattern (only if they are not
 	the same as the most recent entry). */
-	BOOL bSaveEntry = FALSE;
+	//BOOL bSaveEntry = FALSE;
 
-	if (m_persistentSettings->m_searchDirectories.empty()
-		|| lstrcmp(szBaseDirectory, m_persistentSettings->m_searchDirectories.begin()->c_str())
-			!= 0)
-	{
-		bSaveEntry = TRUE;
-	}
+	//if (m_persistentSettings->m_searchDirectories.empty()
+	//	|| lstrcmp(szBaseDirectory, m_persistentSettings->m_searchDirectories.begin()->c_str())
+	//		!= 0)
+	//{
+	//	bSaveEntry = TRUE;
+	//}
 
-	if (bSaveEntry)
-	{
-		SaveEntry(IDC_COMBO_DIRECTORY, m_persistentSettings->m_searchDirectories);
-	}
+	//if (bSaveEntry)
+	//{
+	//	SaveEntry(IDC_COMBO_DIRECTORY, m_persistentSettings->m_searchDirectories);
+	//}
 
-	bSaveEntry = FALSE;
+	//bSaveEntry = FALSE;
 
-	if (m_persistentSettings->m_searchPatterns.empty()
-		|| lstrcmp(szSearchPattern, m_persistentSettings->m_searchPatterns.begin()->c_str()) != 0)
-	{
-		bSaveEntry = TRUE;
-	}
+	//if (m_persistentSettings->m_searchPatterns.empty()
+	//	|| lstrcmp(szSearchPattern, m_persistentSettings->m_searchPatterns.begin()->c_str()) != 0)
+	//{
+	//	bSaveEntry = TRUE;
+	//}
 
-	if (bSaveEntry)
-	{
-		SaveEntry(IDC_COMBO_NAME, m_persistentSettings->m_searchPatterns);
-	}
+	//if (bSaveEntry)
+	//{
+	//	SaveEntry(IDC_COMBO_NAME, m_persistentSettings->m_searchPatterns);
+	//}
 
 	GetDlgItemText(m_hDlg, IDSEARCH, m_szSearchButton, SIZEOF_ARRAY(m_szSearchButton));
 
@@ -691,6 +721,7 @@ INT_PTR SearchDialog::OnNotify(NMHDR *pnmhdr)
 {
 	switch (pnmhdr->code)
 	{
+	case NM_RETURN:
 	case NM_DBLCLK:
 		if (pnmhdr->hwndFrom == GetDlgItem(m_hDlg, IDC_LISTVIEW_SEARCHRESULTS))
 		{
@@ -721,6 +752,8 @@ INT_PTR SearchDialog::OnNotify(NMHDR *pnmhdr)
 					if (hr == S_OK)
 					{
 						m_navigator->OpenItem(pidlFull.get());
+						if (m_hDlg)
+							PostMessage(m_hDlg, WM_CLOSE, 0, 0);
 					}
 				}
 			}
@@ -971,6 +1004,10 @@ INT_PTR SearchDialog::OnTimer(int iTimerID)
 		lvItem.iImage = shfi.iIcon;
 		lvItem.lParam = m_iInternalIndex++;
 		iIndex = ListView_InsertItem(hListView, &lvItem);
+		if (iIndex  == 0)
+			ListView_SetItemState(hListView, iIndex,
+				LVIS_SELECTED | LVFIS_FOCUSED, LVIS_SELECTED | LVFIS_FOCUSED);
+
 
 		ListView_SetItemText(hListView, iIndex, 1, directory);
 
@@ -988,6 +1025,43 @@ INT_PTR SearchDialog::OnTimer(int iTimerID)
 
 INT_PTR SearchDialog::OnClose()
 {
+	TCHAR szBaseDirectory[MAX_PATH];
+	TCHAR szSearchPattern[MAX_PATH];
+
+	/* Get the directory and name, and remove leading and
+	trailing whitespace. */
+	GetDlgItemText(m_hDlg, IDC_COMBO_DIRECTORY, szBaseDirectory, SIZEOF_ARRAY(szBaseDirectory));
+	PathRemoveBlanks(szBaseDirectory);
+	GetDlgItemText(m_hDlg, IDC_COMBO_NAME, szSearchPattern, SIZEOF_ARRAY(szSearchPattern));
+	PathRemoveBlanks(szSearchPattern);
+
+	BOOL bSaveEntry = FALSE;
+
+	if (m_persistentSettings->m_searchDirectories.empty()
+		|| lstrcmp(szBaseDirectory, m_persistentSettings->m_searchDirectories.begin()->c_str())
+			!= 0)
+	{
+		bSaveEntry = TRUE;
+	}
+
+	if (bSaveEntry)
+	{
+		SaveEntry(IDC_COMBO_DIRECTORY, m_persistentSettings->m_searchDirectories);
+	}
+
+	bSaveEntry = FALSE;
+
+	if (m_persistentSettings->m_searchPatterns.empty()
+		|| lstrcmp(szSearchPattern, m_persistentSettings->m_searchPatterns.begin()->c_str()) != 0)
+	{
+		bSaveEntry = TRUE;
+	}
+
+	if (bSaveEntry)
+	{
+		SaveEntry(IDC_COMBO_NAME, m_persistentSettings->m_searchPatterns);
+	}
+
 	DestroyWindow(m_hDlg);
 
 	return 0;

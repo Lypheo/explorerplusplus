@@ -110,7 +110,8 @@ LRESULT CALLBACK ComboBox::ComboBoxParentProc(HWND hwnd, UINT msg, WPARAM wParam
 			case CBN_EDITCHANGE:
 				if (reinterpret_cast<HWND>(lParam) == m_hwnd)
 				{
-					return OnCBNEditChange();
+					//return OnCBNEditChange() || DefSubclassProc(hwnd, msg, wParam, lParam);
+					OnCBNEditChange();
 				}
 				break;
 			}
