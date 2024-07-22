@@ -669,6 +669,8 @@ std::optional<std::wstring> TransformUserEnteredPathToAbsolutePath(
 			return character == '\u0020';
 		});
 
+	std::replace(updatedPath.begin(), updatedPath.end(), '/', '\\');
+
 	if (updatedPath.empty())
 	{
 		return std::nullopt;
